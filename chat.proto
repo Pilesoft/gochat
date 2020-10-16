@@ -19,10 +19,11 @@ message LoginResponse {
 message StreamMessage {
   string type = 6;
   string content = 7;
-  string clients = 8;
+  string name = 8;
 }
 
 service ChatService {
   rpc SayHello(Message) returns (Message) {}
   rpc Login(LoginRequest) returns (LoginResponse) {}
+  rpc StreamChat(stream StreamMessage) returns (stream StreamMessage) {}
 }

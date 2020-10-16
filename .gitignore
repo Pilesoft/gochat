@@ -5,9 +5,8 @@
 *.so
 *.dylib
 
-gochat
-server
-client
+gochat_server
+gochat_client
 
 # Test binary, built with `go test -c`
 *.test

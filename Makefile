@@ -1,14 +1,14 @@
-all: client server
+all: gochat_client gochat_server
 
-client: client.go
-	go build -v client.go
+gochat_client: client.go
+	go build -o gochat_client -v client.go
 
-server: server.go
-	go build -v server.go
+gochat_server: server.go
+	go build -o gochat_server -v server.go
 
 proto: chat.proto
 	protoc --go_out=plugins=grpc:chat chat.proto 
 
 clean:
-	rm server
-	rm client
+	rm gochat_server
+	rm gochat_client
