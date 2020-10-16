@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"strings"
 	"time"
 
 	"fyne.io/fyne"
@@ -78,7 +80,8 @@ func main() {
 }
 
 func startChat(a *fyne.App, c *chat.ChatServiceClient) {
-	w := (*a).NewWindow("Awesome gRPC chat")
+	title := fmt.Sprintf("Awesome gRPC chat [%s]", username)
+	w := (*a).NewWindow(title)
 	w.CenterOnScreen()
 	w.Resize(fyne.NewSize(800, 600))
 
@@ -91,8 +94,74 @@ func startChat(a *fyne.App, c *chat.ChatServiceClient) {
 
 	chatMessage := widget.NewMultiLineEntry()
 	chatMessage.Resize(fyne.NewSize(600, 200))
+
+	stream, err := (*c).StreamChat(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	helloMsg := chat.StreamMessage{
+		Type: "HELLO",
+		Name: username,
+	}
+
+	if err = stream.Send(&helloMsg); err != nil {
+		log.Fatalf("Can't complete handshake with server: %v\n", err)
+	}
+
+	w.SetOnClosed(func() {
+		if err := stream.CloseSend(); err != nil {
+			log.Fatalln(err)
+		}
+	})
+
+	go func() {
+		for {
+			msg, err := stream.Recv()
+			if err == io.EOF {
+				log.Println("Connection closed by server")
+				w.Close()
+			}
+			if err != nil {
+				log.Fatalf("Error receiving message: %v\n", err)
+			}
+
+			switch msg.Type {
+			case "CLIENTS":
+				names.Children = []fyne.CanvasObject{}
+				clients := strings.Split(msg.Content, ",")
+				for _, client := range clients {
+					names.Append(widget.NewLabel(client))
+				}
+				nameScroll.ScrollToBottom()
+
+				if len(msg.Name) > 0 {
+					byeStr := fmt.Sprintf("---- %s has left the chat ----", msg.Name)
+					chatWindow.Append(widget.NewLabel(byeStr))
+				}
+			case "MESSAGE":
+				messageStr := fmt.Sprintf("%s ---> %s", msg.Name, msg.Content)
+				chatWindow.Append(widget.NewLabel(messageStr))
+				chatWindowScroll.ScrollToBottom()
+			default:
+				log.Printf("Unknown message type %s: %v\n", msg.Type, msg)
+			}
+		}
+	}()
+
 	chatSend := widget.NewButton("Send", func() {
-		fmt.Println("We will send some cool message to the server: %s", chatMessage.Text)
+		fmt.Printf("We will send some cool message to the server: %s\n", chatMessage.Text)
+		msg := chat.StreamMessage{
+			Type:    "MESSAGE",
+			Content: chatMessage.Text,
+			Name:    username,
+		}
+
+		chatMessage.SetText("")
+
+		if err := stream.Send(&msg); err != nil {
+			log.Printf("Error sending message: %v", err)
+		}
 	})
 
 	chatBottom := widget.NewHBox(chatMessage, chatSend)
