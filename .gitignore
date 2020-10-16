@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+gochat
+server
+client
+
 # Test binary, built with `go test -c`
 *.test
 
