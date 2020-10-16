@@ -1,0 +1,28 @@
+syntax = "proto3";
+package chat;
+option go_package = "chat";
+
+message Message {
+  string body = 1;
+}
+
+message LoginRequest {
+  string name = 2;
+}
+
+message LoginResponse {
+  bool status = 3;
+  string message = 4;
+  int32 id = 5;
+}
+
+message StreamMessage {
+  string type = 6;
+  string content = 7;
+  string clients = 8;
+}
+
+service ChatService {
+  rpc SayHello(Message) returns (Message) {}
+  rpc Login(LoginRequest) returns (LoginResponse) {}
+}
