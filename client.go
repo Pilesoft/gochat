@@ -3,85 +3,99 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
+
+	//"io"
 	"log"
-	"strings"
+	//"strings"
 	"time"
 
-	"fyne.io/fyne"
+	/*"fyne.io/fyne"
 	"fyne.io/fyne/app"
-	"fyne.io/fyne/widget"
+	"fyne.io/fyne/widget"*/
+	g "github.com/AllenDang/giu"
 	"github.com/Pilesoft/gochat/chat"
 	"google.golang.org/grpc"
 )
 
 var username string
+var serverAddress string
 var userid int32
+var logged bool
 
-func main() {
-	a := app.New()
+var wnd *g.MasterWindow
 
-	// Setup login window
-	loginWindow := a.NewWindow("Chat login")
-	loginWindow.Resize(fyne.NewSize(600, 200))
-	loginWindow.CenterOnScreen()
-	loginWindow.SetFixedSize(true)
+var client chat.ChatServiceClient
+var clients []string = []string{}
 
-	// Setup login form
-	c := widget.NewVBox()
-	addr := widget.NewEntry()
-	addr.SetPlaceHolder("Server address")
-	name := widget.NewEntry()
-	name.SetPlaceHolder("Enter your name")
-	results := widget.NewLabel("")
-	btn := widget.NewButton("LOGIN", func() {
-		lmsg := fmt.Sprintf("Logging into server %s with name %s\n", addr.Text, name.Text)
-		fmt.Printf(lmsg)
-		results.SetText(lmsg)
-		conn, err := grpc.Dial(addr.Text+":9000", grpc.WithInsecure())
-		if err != nil {
-			msg := fmt.Sprintf("Can't connect to server: %s\n", err)
-			results.SetText(msg)
-			log.Print(msg)
-			return
-		}
+func login() {
+	lmsg := fmt.Sprintf("Logging into server %s with name %s\n", serverAddress, username)
+	fmt.Printf(lmsg)
+	conn, err := grpc.Dial(serverAddress+":9000", grpc.WithInsecure())
+	if err != nil {
+		msg := fmt.Sprintf("Can't connect to server: %s\n", err)
+		log.Print(msg)
+		return
+	}
 
-		client := chat.NewChatServiceClient(conn)
+	client = chat.NewChatServiceClient(conn)
 
-		resp, err := client.Login(context.Background(), &chat.LoginRequest{Name: name.Text})
-		if err != nil {
-			msg := fmt.Sprintf("Login error: %s\n", err)
-			results.SetText(msg)
-			log.Print(msg)
-			return
-		}
-		if resp.Status {
-			msg := fmt.Sprintf("Successful login [id %d], message from server: %s\n", resp.Id, resp.Message)
-			username = name.Text
-			userid = resp.Id
-			results.SetText(msg)
-			log.Print(msg)
-			time.Sleep(2 * time.Second)
-			loginWindow.Close()
-			startChat(&a, &client)
-		} else {
-			msg := fmt.Sprintf("Rejected login: %s\n", resp.Message)
-			results.SetText(msg)
-			log.Print(msg)
-		}
-	})
-	c.Append(addr)
-	c.Append(name)
-	c.Append(btn)
-	c.Append(results)
-
-	loginWindow.SetContent(c)
-	loginWindow.ShowAndRun()
+	resp, err := client.Login(context.Background(), &chat.LoginRequest{Name: username})
+	if err != nil {
+		msg := fmt.Sprintf("Login error: %s\n", err)
+		g.Msgbox("Login error", msg)
+		log.Print(msg)
+		return
+	}
+	if resp.Status {
+		msg := fmt.Sprintf("Successful login [id %d], message from server: %s\n", resp.Id, resp.Message)
+		userid = resp.Id
+		log.Print(msg)
+		g.Msgbox("Login success", msg)
+		time.Sleep(2 * time.Second)
+		logged = true
+	} else {
+		msg := fmt.Sprintf("Rejected login: %s\n", resp.Message)
+		g.Msgbox("Login error", msg)
+		log.Print(msg)
+	}
 }
 
-func startChat(a *fyne.App, c *chat.ChatServiceClient) {
-	title := fmt.Sprintf("Awesome gRPC chat [%s]", username)
-	w := (*a).NewWindow(title)
+func loop() {
+	if !logged {
+		g.Window("Client login").Size(400, 200).Flags(g.WindowFlags(g.MasterWindowFlagsNotResizable)).Layout(
+			g.Row(
+				g.Label("User name"),
+				g.InputText(&username),
+			),
+			g.Row(
+				g.Label("Address"),
+				g.InputText(&serverAddress),
+			),
+			g.Button("Login").OnClick(login),
+			g.PrepareMsgbox(),
+		)
+	} else {
+		g.SingleWindowWithMenuBar().Layout(
+			g.SplitLayout(g.DirectionHorizontal, true, 200, g.Layout{
+				g.Label("Chat participants"),
+			}, g.SplitLayout(g.DirectionVertical, true, -200, g.Layout{}, g.Layout{})),
+		)
+	}
+}
+
+func main() {
+	logged = false
+	wnd = g.NewMasterWindow("Gochat client", 400, 200, g.MasterWindowFlagsMaximized)
+	wnd.Run(loop)
+}
+
+func startChat(c *chat.ChatServiceClient) {
+	logged = true
+	/*title := fmt.Sprintf("Awesome gRPC chat [%s]", username)
+	w := g.NewMasterWindow(title, 800, 600, g.MasterWindowFlagsMaximized)
+	w.Run(chatLoop)
+	wnd = w*/
+	/*w := (*a).NewWindow(title)
 	w.CenterOnScreen()
 	w.Resize(fyne.NewSize(800, 600))
 
@@ -173,5 +187,5 @@ func startChat(a *fyne.App, c *chat.ChatServiceClient) {
 	genContainer.SetOffset(-10)
 
 	w.SetContent(genContainer)
-	w.Show()
+	w.Show()*/
 }
