@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"strings"
 
 	//"io"
 	"log"
@@ -12,6 +14,7 @@ import (
 	/*"fyne.io/fyne"
 	"fyne.io/fyne/app"
 	"fyne.io/fyne/widget"*/
+
 	g "github.com/AllenDang/giu"
 	"github.com/Pilesoft/gochat/chat"
 	"google.golang.org/grpc"
@@ -25,7 +28,7 @@ var logged bool
 var wnd *g.MasterWindow
 
 var client chat.ChatServiceClient
-var clients []string = []string{}
+var clients []interface{}
 
 func login() {
 	lmsg := fmt.Sprintf("Logging into server %s with name %s\n", serverAddress, username)
@@ -52,7 +55,7 @@ func login() {
 		log.Print(msg)
 		g.Msgbox("Login success", msg)
 		time.Sleep(2 * time.Second)
-		logged = true
+		startChat()
 	} else {
 		msg := fmt.Sprintf("Rejected login: %s\n", resp.Message)
 		g.Msgbox("Login error", msg)
@@ -78,6 +81,10 @@ func loop() {
 		g.SingleWindowWithMenuBar().Layout(
 			g.SplitLayout(g.DirectionHorizontal, true, 200, g.Layout{
 				g.Label("Chat participants"),
+				g.RangeBuilder("Clients", clients, func(i int, v interface{}) g.Widget {
+					str := v.(string)
+					return g.Label(str)
+				}),
 			}, g.SplitLayout(g.DirectionVertical, true, -200, g.Layout{}, g.Layout{})),
 		)
 	}
@@ -89,7 +96,7 @@ func main() {
 	wnd.Run(loop)
 }
 
-func startChat(c *chat.ChatServiceClient) {
+func startChat() {
 	logged = true
 	/*title := fmt.Sprintf("Awesome gRPC chat [%s]", username)
 	w := g.NewMasterWindow(title, 800, 600, g.MasterWindowFlagsMaximized)
@@ -127,14 +134,29 @@ func startChat(c *chat.ChatServiceClient) {
 		if err := stream.CloseSend(); err != nil {
 			log.Fatalln(err)
 		}
-	})
+	})*/
+
+	c := &client
+
+	stream, err := (*c).StreamChat(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	helloMsg := chat.StreamMessage{
+		Type: "HELLO",
+		Name: username,
+	}
+
+	if err = stream.Send(&helloMsg); err != nil {
+		log.Fatalf("Can't complete handshake with server: %v\n", err)
+	}
 
 	go func() {
 		for {
 			msg, err := stream.Recv()
 			if err == io.EOF {
 				log.Println("Connection closed by server")
-				w.Close()
 			}
 			if err != nil {
 				log.Fatalf("Error receiving message: %v\n", err)
@@ -142,28 +164,28 @@ func startChat(c *chat.ChatServiceClient) {
 
 			switch msg.Type {
 			case "CLIENTS":
-				names.Children = []fyne.CanvasObject{}
-				clients := strings.Split(msg.Content, ",")
-				for _, client := range clients {
-					names.Append(widget.NewLabel(client))
+				log.Printf("Clients message received: %s\n", msg.Content)
+				clientsList := strings.Split(msg.Content, ",")
+				clients = make([]interface{}, 0)
+				for _, cl := range clientsList {
+					clients = append(clients, cl)
 				}
-				nameScroll.ScrollToBottom()
 
 				if len(msg.Name) > 0 {
-					byeStr := fmt.Sprintf("---- %s has left the chat ----", msg.Name)
-					chatWindow.Append(widget.NewLabel(byeStr))
+					//byeStr := fmt.Sprintf("---- %s has left the chat ----", msg.Name)
+					//chatWindow.Append(widget.NewLabel(byeStr))
 				}
 			case "MESSAGE":
-				messageStr := fmt.Sprintf("%s ---> %s", msg.Name, msg.Content)
-				chatWindow.Append(widget.NewLabel(messageStr))
-				chatWindowScroll.ScrollToBottom()
+				//messageStr := fmt.Sprintf("%s ---> %s", msg.Name, msg.Content)
+				//chatWindow.Append(widget.NewLabel(messageStr))
+				//chatWindowScroll.ScrollToBottom()
 			default:
 				log.Printf("Unknown message type %s: %v\n", msg.Type, msg)
 			}
 		}
 	}()
 
-	chatSend := widget.NewButton("Send", func() {
+	/*chatSend := widget.NewButton("Send", func() {
 		fmt.Printf("We will send some cool message to the server: %s\n", chatMessage.Text)
 		msg := chat.StreamMessage{
 			Type:    "MESSAGE",
